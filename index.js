@@ -9,7 +9,7 @@ const {
   ButtonStyle,
   EmbedBuilder
 } = require("discord.js");
-const { login } = require("aternos-unofficial-api");
+const aternosApi = require("aternos-unofficial-api");
 const mineflayer = require("mineflayer");
 const cron = require("node-cron");
 
@@ -38,7 +38,6 @@ const client = new Client({
   ]
 });
 
-// Embed builder
 function buildPanelEmbed() {
   return new EmbedBuilder()
     .setColor(0x00ffcc)
@@ -51,7 +50,6 @@ function buildPanelEmbed() {
     .setFooter({ text: "Use the buttons below to control your server." });
 }
 
-// Buttons
 function buildButtons() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -73,19 +71,16 @@ function buildButtons() {
   );
 }
 
-// Ready event
 client.once("ready", async () => {
   console.log(`✅ Discord bot logged in as ${client.user.tag}`);
 
-  // Login to Aternos API
-  aternos = await login(ATERNOS_USER, ATERNOS_PASS);
+  // FIX: Use the correct direct function call for Aternos API
+  aternos = await aternosApi(ATERNOS_USER, ATERNOS_PASS);
   console.log("🔑 Logged into Aternos API.");
 
-  // Start AFK Bot when Discord is ready
   startAFKBot();
 });
 
-// Command to show panel
 client.on("messageCreate", async (msg) => {
   if (msg.content === "!panel") {
     const embed = buildPanelEmbed();
@@ -96,7 +91,6 @@ client.on("messageCreate", async (msg) => {
   }
 });
 
-// Handle button clicks
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
@@ -128,7 +122,6 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// Update status in panel
 async function updateStatus() {
   try {
     const servers = await aternos.listServers();
@@ -139,23 +132,20 @@ async function updateStatus() {
     statusCache = info.status ? `🟢 ${info.status.toUpperCase()}` : "❌ Unknown";
 
     if (controlMessage) {
-      const embed = buildPanelEmbed();
-      const row = buildButtons();
-      await controlMessage.edit({ embeds: [embed], components: [row] });
+      await controlMessage.edit({
+        embeds: [buildPanelEmbed()],
+        components: [buildButtons()]
+      });
     }
   } catch (err) {
     console.error("Status check failed:", err);
   }
 }
 
-// Auto refresh every 2 minutes
 cron.schedule("*/2 * * * *", () => {
   updateStatus();
 });
 
-// =======================
-// Minecraft AFK Bot (silent, stand still)
-// =======================
 function startAFKBot() {
   function createBot() {
     const bot = mineflayer.createBot({
@@ -165,7 +155,6 @@ function startAFKBot() {
       version: false
     });
 
-    // Remove chat logs
     bot.removeAllListeners("message");
 
     bot.on("spawn", () => {
@@ -182,7 +171,7 @@ function startAFKBot() {
       setTimeout(createBot, 5000);
     });
 
-    bot.on("error", (err) => {
+    bot.on("error", err => {
       console.log("⚠️ AFK Bot error:", err.message);
       setTimeout(createBot, 5000);
     });
@@ -191,7 +180,4 @@ function startAFKBot() {
   createBot();
 }
 
-// =======================
-// Start Discord Bot
-// =======================
 client.login(DISCORD_TOKEN);
