@@ -1,41 +1,47 @@
 // =======================
-// Discord Manager Panel
+// Discord Manager Panel + AFK Bot
 // =======================
-const { 
-  Client, GatewayIntentBits,
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder 
+const {
+  Client,
+  GatewayIntentBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder
 } = require("discord.js");
-const Aternos = require("aternos-unofficial-api");
+const { login } = require("aternos-unofficial-api");
+const mineflayer = require("mineflayer");
 const cron = require("node-cron");
 
 // =======================
-// Minecraft AFK Bot
-// =======================
-const mineflayer = require("mineflayer");
-
-// =======================
-// Config (use ENV in Render!)
+// Config (Render ENV Vars)
 // =======================
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const ATERNOS_USER = process.env.ATERNOS_USER;
 const ATERNOS_PASS = process.env.ATERNOS_PASS;
 const SERVER_ADDRESS = process.env.SERVER_ADDRESS || "dreamspire-0KKj.aternos.me";
-const BOT_USERNAME = process.env.BOT_USERNAME || "AFKBot";
 const SERVER_PORT = parseInt(process.env.SERVER_PORT) || 35063;
-
-// =======================
-// Discord Bot Setup
-// =======================
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+const BOT_USERNAME = process.env.BOT_USERNAME || "AFKBot";
 
 let aternos;
 let controlMessage;
 let statusCache = "⏳ Checking...";
 
-// GUI embed
+// =======================
+// Discord Bot Setup
+// =======================
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
+
+// Embed builder
 function buildPanelEmbed() {
   return new EmbedBuilder()
-    .setColor(0x7289da)
+    .setColor(0x00ffcc)
     .setTitle("🌸 Dreamspire SMP Control Panel 🌸")
     .setDescription(
       `✨ **Status:** ${statusCache}\n\n` +
@@ -45,7 +51,7 @@ function buildPanelEmbed() {
     .setFooter({ text: "Use the buttons below to control your server." });
 }
 
-// GUI buttons
+// Buttons
 function buildButtons() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -58,24 +64,28 @@ function buildButtons() {
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId("send_message")
-      .setLabel("💬 Send Broadcast")
+      .setLabel("💬 Broadcast")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId("refresh_status")
-      .setLabel("🔄 Refresh Status")
+      .setLabel("🔄 Refresh")
       .setStyle(ButtonStyle.Secondary)
   );
 }
 
-// Discord Ready
+// Ready event
 client.once("ready", async () => {
   console.log(`✅ Discord bot logged in as ${client.user.tag}`);
-  aternos = new Aternos();
-  await aternos.login(ATERNOS_USER, ATERNOS_PASS);
-  startAFKBot(); // launch AFK bot when Discord bot is ready
+
+  // Login to Aternos API
+  aternos = await login(ATERNOS_USER, ATERNOS_PASS);
+  console.log("🔑 Logged into Aternos API.");
+
+  // Start AFK Bot when Discord is ready
+  startAFKBot();
 });
 
-// Panel command
+// Command to show panel
 client.on("messageCreate", async (msg) => {
   if (msg.content === "!panel") {
     const embed = buildPanelEmbed();
@@ -86,11 +96,12 @@ client.on("messageCreate", async (msg) => {
   }
 });
 
-// Handle interactions
+// Handle button clicks
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
-  const server = await aternos.getServer(SERVER_ADDRESS);
+  const servers = await aternos.listServers();
+  const server = servers.find(s => s.address.includes(SERVER_ADDRESS));
   if (!server) return interaction.reply({ content: "⚠️ Server not found!", ephemeral: true });
 
   if (interaction.customId === "start_server") {
@@ -99,9 +110,8 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   if (interaction.customId === "stop_server") {
-    // only admins allowed
     if (!interaction.member.permissions.has("Administrator")) {
-      return interaction.reply({ content: "🚫 You are not allowed to stop the server.", ephemeral: true });
+      return interaction.reply({ content: "🚫 Only admins can stop the server.", ephemeral: true });
     }
     await server.stop();
     return interaction.reply({ content: "🛑 Server stopping...", ephemeral: true });
@@ -109,7 +119,7 @@ client.on("interactionCreate", async (interaction) => {
 
   if (interaction.customId === "send_message") {
     await server.sendCommand("say Hello from Discord!");
-    return interaction.reply({ content: "💬 Message sent to server chat!", ephemeral: true });
+    return interaction.reply({ content: "💬 Broadcast sent!", ephemeral: true });
   }
 
   if (interaction.customId === "refresh_status") {
@@ -118,10 +128,13 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// Status updater
+// Update status in panel
 async function updateStatus() {
   try {
-    const server = await aternos.getServer(SERVER_ADDRESS);
+    const servers = await aternos.listServers();
+    const server = servers.find(s => s.address.includes(SERVER_ADDRESS));
+    if (!server) return;
+
     const info = await server.fetch();
     statusCache = info.status ? `🟢 ${info.status.toUpperCase()}` : "❌ Unknown";
 
@@ -135,13 +148,13 @@ async function updateStatus() {
   }
 }
 
-// Refresh every 2 min
+// Auto refresh every 2 minutes
 cron.schedule("*/2 * * * *", () => {
   updateStatus();
 });
 
 // =======================
-// Minecraft AFK Bot (silent)
+// Minecraft AFK Bot (silent, stand still)
 // =======================
 function startAFKBot() {
   function createBot() {
@@ -152,7 +165,7 @@ function startAFKBot() {
       version: false
     });
 
-    // Silent AFK
+    // Remove chat logs
     bot.removeAllListeners("message");
 
     bot.on("spawn", () => {
@@ -179,6 +192,6 @@ function startAFKBot() {
 }
 
 // =======================
-// Start Discord bot
+// Start Discord Bot
 // =======================
 client.login(DISCORD_TOKEN);
