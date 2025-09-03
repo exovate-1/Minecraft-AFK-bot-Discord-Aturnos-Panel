@@ -1,164 +1,29 @@
-// =======================
-// Discord Manager Panel + AFK Bot
-// =======================
-const {
-  Client,
-  GatewayIntentBits,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder
-} = require("discord.js");
-const aternosApi = require("aternos-unofficial-api");
-const mineflayer = require("mineflayer");
-const cron = require("node-cron");
+const mineflayer = require('mineflayer');
 
 // =======================
-// Config (Render ENV Vars)
+// Config
 // =======================
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const ATERNOS_USER = process.env.ATERNOS_USER;
-const ATERNOS_PASS = process.env.ATERNOS_PASS;
 const SERVER_ADDRESS = process.env.SERVER_ADDRESS || "dreamspire-0KKj.aternos.me";
 const SERVER_PORT = parseInt(process.env.SERVER_PORT) || 35063;
 const BOT_USERNAME = process.env.BOT_USERNAME || "AFKBot";
 
-let aternos;
-let controlMessage;
-let statusCache = "⏳ Checking...";
-
 // =======================
-// Discord Bot Setup
+// AFK Bot
 // =======================
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
-});
-
-function buildPanelEmbed() {
-  return new EmbedBuilder()
-    .setColor(0x00ffcc)
-    .setTitle("🌸 Dreamspire SMP Control Panel 🌸")
-    .setDescription(
-      `✨ **Status:** ${statusCache}\n\n` +
-      `🎮 **Java Edition:** \`${SERVER_ADDRESS}:${SERVER_PORT}\`\n` +
-      `📱 **Bedrock Edition:** [Click to Join](minecraft://?addExternalServer=Dreamspire|${SERVER_ADDRESS}:${SERVER_PORT})`
-    )
-    .setFooter({ text: "Use the buttons below to control your server." });
-}
-
-function buildButtons() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("start_server")
-      .setLabel("🚀 Start Server")
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId("stop_server")
-      .setLabel("🛑 Stop Server")
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId("send_message")
-      .setLabel("💬 Broadcast")
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId("refresh_status")
-      .setLabel("🔄 Refresh")
-      .setStyle(ButtonStyle.Secondary)
-  );
-}
-
-client.once("ready", async () => {
-  console.log(`✅ Discord bot logged in as ${client.user.tag}`);
-
-  // FIX: Use the correct direct function call for Aternos API
-  aternos = await aternosApi(ATERNOS_USER, ATERNOS_PASS);
-  console.log("🔑 Logged into Aternos API.");
-
-  startAFKBot();
-});
-
-client.on("messageCreate", async (msg) => {
-  if (msg.content === "!panel") {
-    const embed = buildPanelEmbed();
-    const row = buildButtons();
-
-    controlMessage = await msg.reply({ embeds: [embed], components: [row] });
-    updateStatus();
-  }
-});
-
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isButton()) return;
-
-  const servers = await aternos.listServers();
-  const server = servers.find(s => s.address.includes(SERVER_ADDRESS));
-  if (!server) return interaction.reply({ content: "⚠️ Server not found!", ephemeral: true });
-
-  if (interaction.customId === "start_server") {
-    await server.start();
-    return interaction.reply({ content: "⏳ Server is starting...", ephemeral: true });
-  }
-
-  if (interaction.customId === "stop_server") {
-    if (!interaction.member.permissions.has("Administrator")) {
-      return interaction.reply({ content: "🚫 Only admins can stop the server.", ephemeral: true });
-    }
-    await server.stop();
-    return interaction.reply({ content: "🛑 Server stopping...", ephemeral: true });
-  }
-
-  if (interaction.customId === "send_message") {
-    await server.sendCommand("say Hello from Discord!");
-    return interaction.reply({ content: "💬 Broadcast sent!", ephemeral: true });
-  }
-
-  if (interaction.customId === "refresh_status") {
-    await updateStatus();
-    return interaction.reply({ content: "🔄 Status refreshed!", ephemeral: true });
-  }
-});
-
-async function updateStatus() {
-  try {
-    const servers = await aternos.listServers();
-    const server = servers.find(s => s.address.includes(SERVER_ADDRESS));
-    if (!server) return;
-
-    const info = await server.fetch();
-    statusCache = info.status ? `🟢 ${info.status.toUpperCase()}` : "❌ Unknown";
-
-    if (controlMessage) {
-      await controlMessage.edit({
-        embeds: [buildPanelEmbed()],
-        components: [buildButtons()]
-      });
-    }
-  } catch (err) {
-    console.error("Status check failed:", err);
-  }
-}
-
-cron.schedule("*/2 * * * *", () => {
-  updateStatus();
-});
-
 function startAFKBot() {
   function createBot() {
     const bot = mineflayer.createBot({
       host: SERVER_ADDRESS,
       port: SERVER_PORT,
       username: BOT_USERNAME,
-      version: false
+      version: false // auto-detect version
     });
 
+    // Remove chat and system messages
     bot.removeAllListeners("message");
 
     bot.on("spawn", () => {
-      console.log("🤖 AFK Bot joined silently and is standing still.");
+      console.log(`🤖 AFK Bot ${BOT_USERNAME} joined and is standing still.`);
     });
 
     bot.on("end", () => {
@@ -171,7 +36,7 @@ function startAFKBot() {
       setTimeout(createBot, 5000);
     });
 
-    bot.on("error", err => {
+    bot.on("error", (err) => {
       console.log("⚠️ AFK Bot error:", err.message);
       setTimeout(createBot, 5000);
     });
@@ -180,4 +45,4 @@ function startAFKBot() {
   createBot();
 }
 
-client.login(DISCORD_TOKEN);
+startAFKBot();
