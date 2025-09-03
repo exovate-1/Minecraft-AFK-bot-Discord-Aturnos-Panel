@@ -1,24 +1,38 @@
+import mineflayer from "mineflayer";
+import express from "express";
 
-// afkBot.js
-const mineflayer = require('mineflayer');
+// --- CONFIG ---
+const MC_SERVER_HOST = "dreamspire-0KKj.aternos.me";
+const MC_SERVER_PORT = 35063;
+const BOT_USERNAME = "Dreamspire"; // Can be any username
+const HTTP_PORT = 1000;       // Express server port
 
+// --- CREATE MINECRAFT BOT ---
 const bot = mineflayer.createBot({
-  host: 'dreamspire-0KKj.aternos.me', // e.g., play.example.com
-  port: 35063,                 // default Minecraft port
-  username: 'Dreamspire',
-  version: '1.21.8'            // match your server version
+  host: MC_SERVER_HOST,
+  port: MC_SERVER_PORT,
+  username: BOT_USERNAME,
 });
 
-bot.once('spawn', () => {
-  console.log('Bot has joined the server and is AFK.');
-  
-  // Optional: keep moving a little to avoid being kicked
-  setInterval(() => {
-    bot.setControlState('forward', true);
-    setTimeout(() => bot.setControlState('forward', false), 1000);
-  }, 60000); // every 60 seconds
+bot.on("login", () => {
+  console.log(`Bot logged in as ${BOT_USERNAME}`);
 });
 
-bot.on('error', (err) => console.log('Error:', err));
-bot.on('end', () => console.log('Bot disconnected. Reconnect manually.'));
+bot.on("error", err => {
+  console.log("Bot error:", err);
+});
 
+bot.on("end", () => {
+  console.log("Bot disconnected, reconnecting in 5s...");
+  setTimeout(() => createBot(), 5000);
+});
+
+// --- EXPRESS SERVER FOR UPTIMEROBOT ---
+const app = express();
+app.get("/", (req, res) => {
+  res.send("Minecraft bot server is online! ✅");
+});
+
+app.listen(HTTP_PORT, () => {
+  console.log(`HTTP server running on port ${HTTP_PORT}`);
+});
