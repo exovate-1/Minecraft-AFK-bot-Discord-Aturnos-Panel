@@ -1,61 +1,90 @@
 // index.js
+import express from "express";
 import mineflayer from "mineflayer";
-import chalk from "chalk";
+import { status } from "minecraft-server-util";
 
-let reconnectDelay = 5000; // start with 5s
-const maxReconnectDelay = 60000; // cap at 1 min
+const app = express();
+const PORT = process.env.PORT || 10000;
 
-function createBot() {
-  console.log(chalk.cyan("🔄 Starting Dreamspire Bot..."));
+const SERVER_HOST = "dreamspire-0KKj.aternos.me"; // replace with your host
+const SERVER_PORT = 35063; // replace with your Aternos port
 
-  const bot = mineflayer.createBot({
-    host: "dreamspire.aternos.me", // change to your Aternos host
-    port: 25565,
-    username: "DreamBot", // bot username (use alt account if online mode = true)
-  });
+let bot = null;
+let lastStatus = "unknown";
 
-  bot.on("login", () => {
-    console.log(chalk.greenBright("✅ Successfully joined the server!"));
-    reconnectDelay = 5000; // reset delay after success
-  });
+// Function: check server online/offline
+async function checkServer() {
+  try {
+    const res = await status(SERVER_HOST, SERVER_PORT, { timeout: 5000 });
+    if (lastStatus !== "online") {
+      console.log(`✅ Server is ONLINE: ${res.players.online}/${res.players.max}`);
+      lastStatus = "online";
+    }
 
-  bot.on("error", (err) => {
-    console.log(chalk.redBright("❌ Bot Error: ") + chalk.yellow(err.message));
-  });
-
-  bot.on("end", (reason) => {
-    console.log(
-      chalk.magentaBright(
-        `⚠️ Disconnected: ${reason || "unknown reason"}`
-      )
-    );
-    console.log(
-      chalk.blue(
-        `⏳ Reconnecting in ${(reconnectDelay / 1000).toFixed(1)}s...`
-      )
-    );
-    setTimeout(() => {
-      // exponential backoff
-      reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay);
+    if (!bot) {
       createBot();
-    }, reconnectDelay);
-  });
+    }
+  } catch (err) {
+    if (lastStatus !== "offline") {
+      console.log("❌ Server is OFFLINE or unreachable.");
+      lastStatus = "offline";
+    }
 
-  // Listen to chat
-  bot.on("chat", (username, message) => {
-    if (username === bot.username) return; // ignore self
-    console.log(chalk.gray(`💬 ${username}: ${message}`));
-  });
-
-  // Auto keep alive (optional AFK movement)
-  bot.on("spawn", () => {
-    console.log(chalk.green("🌍 Bot spawned in the world."));
-    setInterval(() => {
-      bot.setControlState("jump", true);
-      setTimeout(() => bot.setControlState("jump", false), 200);
-    }, 60000); // jump every 60s to avoid AFK
-  });
+    if (bot) {
+      bot.quit("Server offline");
+      bot = null;
+    }
+  }
 }
 
-// start bot
-createBot();
+// Function: safely create bot
+function createBot() {
+  console.log("🤖 Attempting to log bot into server...");
+
+  try {
+    bot = mineflayer.createBot({
+      host: SERVER_HOST,
+      port: SERVER_PORT,
+      username: "AFK_Bot",
+    });
+
+    bot.once("spawn", () => {
+      console.log("🎉 Bot has spawned in the server!");
+    });
+
+    bot.on("end", () => {
+      console.log("🔌 Bot disconnected. Waiting for server to come online again.");
+      bot = null;
+    });
+
+    bot.on("kicked", (reason) => {
+      console.log(`⚠️ Bot was kicked: ${reason}`);
+      bot = null;
+    });
+
+    bot.on("error", (err) => {
+      console.log(`⚠️ Bot error: ${err.message}`);
+    });
+  } catch (err) {
+    console.error("❌ Failed to create bot:", err);
+    bot = null;
+  }
+}
+
+// Check every 20s
+setInterval(async () => {
+  try {
+    await checkServer();
+  } catch (err) {
+    console.error("💥 Unhandled checkServer error:", err);
+  }
+}, 20000);
+
+// Simple web server
+app.get("/", (req, res) => {
+  res.send("✅ AFK Minecraft Bot is running and monitoring server.");
+});
+
+app.listen(PORT, () => {
+  console.log(`🌐 Web server running on port ${PORT}`);
+});
