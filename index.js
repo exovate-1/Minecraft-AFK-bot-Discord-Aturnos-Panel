@@ -6,7 +6,7 @@ import { status } from "minecraft-server-util";
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-const SERVER_HOST = "dreamspire-0KKj.aternos.me"; // replace with your host
+const SERVER_HOST = "berryvale.aternos.me"; // replace with your host
 const SERVER_PORT = 35063; // replace with your Aternos port
 
 let bot = null;
