@@ -1,8 +1,9 @@
 import express from "express";
 import mineflayer from "mineflayer";
-import { status } from "minecraft-server-util";
+// Fix for CommonJS module import
+import pkg from "minecraft-server-util";
+const { status } = pkg;
 
-// No need to import Vec3 from vec3, use mineflayer's own Vec3
 const { Vec3 } = mineflayer;
 
 const app = express();
