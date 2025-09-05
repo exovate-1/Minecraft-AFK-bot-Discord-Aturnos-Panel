@@ -1,7 +1,7 @@
-// index.js
 import express from "express";
 import mineflayer from "mineflayer";
 import { status } from "minecraft-server-util";
+import { Vec3 } from "vec3";  // Helper for 3D vectors
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -11,6 +11,10 @@ const SERVER_PORT = 35063; // replace with your Aternos port
 
 let bot = null;
 let lastStatus = "unknown";
+
+// Define circle radius (2 for 4x4 space)
+const circleRadius = 2;  // Radius of the circular movement
+let angle = 0; // Starting angle for the circular motion
 
 // Function: check server online/offline
 async function checkServer() {
@@ -24,6 +28,7 @@ async function checkServer() {
     if (!bot) {
       createBot();
     }
+
   } catch (err) {
     if (lastStatus !== "offline") {
       console.log("❌ Server is OFFLINE or unreachable.");
@@ -37,7 +42,7 @@ async function checkServer() {
   }
 }
 
-// Function: safely create bot
+// Function: create bot and spawn it into the world
 function createBot() {
   console.log("🤖 Attempting to log bot into server...");
 
@@ -45,11 +50,12 @@ function createBot() {
     bot = mineflayer.createBot({
       host: SERVER_HOST,
       port: SERVER_PORT,
-      username: "AFK_Bot",
+      username: "AFK_Bro",  // Updated bot name
     });
 
     bot.once("spawn", () => {
       console.log("🎉 Bot has spawned in the server!");
+      startCircularMovement();  // Start circular movement when bot spawns
     });
 
     bot.on("end", () => {
@@ -71,7 +77,35 @@ function createBot() {
   }
 }
 
-// Check every 20s
+// Function: calculate the next position in a circular path
+function calculateCircularPosition(radius, angle) {
+  const x = Math.cos(angle) * radius;  // X position based on angle
+  const z = Math.sin(angle) * radius;  // Z position based on angle
+  return new Vec3(x, 0, z);  // Keep Y position at 0 (flat surface)
+}
+
+// Function: make bot move in a circular pattern
+async function startCircularMovement() {
+  while (bot) {
+    const targetPosition = calculateCircularPosition(circleRadius, angle);  // Calculate next position
+    const currentPos = bot.entity.position;
+
+    bot.setControlState("forward", true);  // Move forward
+    await bot.lookAt(targetPosition);      // Face the target position
+    setTimeout(() => bot.setControlState("forward", false), 1000);  // Stop after 1 second
+
+    // Increment the angle to move around the circle
+    angle += Math.PI / 8;  // Increment the angle (45 degrees per iteration)
+    if (angle >= 2 * Math.PI) {
+      angle = 0;  // Reset angle after completing one full circle
+    }
+
+    // Delay for smooth movement
+    await new Promise(resolve => setTimeout(resolve, 1000));  // Wait 1 second before next move
+  }
+}
+
+// Check server status every 20 seconds
 setInterval(async () => {
   try {
     await checkServer();
@@ -82,7 +116,7 @@ setInterval(async () => {
 
 // Simple web server
 app.get("/", (req, res) => {
-  res.send("✅ AFK Minecraft Bot is running and monitoring server.");
+  res.send("✅ AFK Minecraft Bot (AFK_Bro) is running and monitoring server.");
 });
 
 app.listen(PORT, () => {
