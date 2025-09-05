@@ -10,12 +10,11 @@
     "express": "^4.17.1",
     "mineflayer": "^4.0.0",
     "minecraft-server-util": "^1.2.1",
-    "vec3": "^1.0.0",
     "axios": "^0.24.0"
   },
   "engines": {
     "node": ">=14.0.0"
   },
-  "author": "Your Name",
+  "author": "Aakesh",
   "license": "MIT"
 }
