@@ -1,7 +1,9 @@
 import express from "express";
 import mineflayer from "mineflayer";
 import { status } from "minecraft-server-util";
-import { Vec3 } from "vec3";  // Helper for 3D vectors
+
+// No need to import Vec3 from vec3, use mineflayer's own Vec3
+const { Vec3 } = mineflayer;
 
 const app = express();
 const PORT = process.env.PORT || 10000;
